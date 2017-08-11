@@ -1,0 +1,14 @@
+{
+    "name": "PayZQ/Payment",
+    "description": "PayZQ integration for Magento 2",
+    "type": "magento2-module",
+    "version": "0.0.1",
+    "license": [
+        "OSL-3.0"
+    ],
+    "autoload": {
+        "files": [
+            "registration.php"
+        ],
+    }
+}
