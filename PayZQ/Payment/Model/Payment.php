@@ -1,11 +1,11 @@
 <?php
 /**
- * Stripe payment method model
+ * PayZQ payment method model
  *
  * @category    PayZQ
  * @package     Payment
  * @author      PayZQ
- * @copyright   Inchoo (http://payzq.net)
+ * @copyright   PayZQ (http://payzq.net)
  */
 
 namespace PayZQ\Payment\Model;
@@ -30,6 +30,7 @@ class Payment extends \Magento\Payment\Model\Method\Cc
     protected $_secret_key = false;
     protected $_test_secret_key = false;
     protected $_mode_test = false;
+    protected $_payload = array();
 
     protected $_countryFactory;
 
@@ -107,6 +108,9 @@ class Payment extends \Magento\Payment\Model\Method\Cc
         $this->_api->set_private_key($this->_secret_key);
         $this->_api->set_test_mode($this->_mode_test);
         $this->_api->set_merchant_key($this->_merchant_key);
+
+        $token = $this->_api->get_secret_key();
+        $this->_payload = $this->_jwt->decode($token, $this->_api->get_key_jwt(), false);
     }
 
     /**
@@ -122,8 +126,7 @@ class Payment extends \Magento\Payment\Model\Method\Cc
   		$token = $this->_api->get_secret_key();
   		$merchant_key = $this->_merchant_key;
 
-  		$token_payload = $this->_jwt->decode($token, $this->_api->get_key_jwt(), false);
-
+      $token_payload = $this->_payload;
       $cypher = (in_array('cypher', $token_payload['security'])) ? true : false;
 
   		$json = json_encode($request, JSON_PRESERVE_ZERO_FRACTION);
@@ -182,8 +185,8 @@ class Payment extends \Magento\Payment\Model\Method\Cc
 
       $order = $payment->getOrder();
 
-      /** @var \Magento\Sales\Model\Order\Address $billing */
       $billing_order = $order->getBillingAddress();
+      $shipping_order = $order->getShippingAddress();
 
   		$card_number = $this->_api->clear_card_number($payment->getCcNumber());
   		$expiry = $this->_api->clear_card_date(sprintf('%02d',$payment->getCcExpMonth()).' '.$payment->getCcExpYear());
@@ -197,16 +200,8 @@ class Payment extends \Magento\Payment\Model\Method\Cc
         "expiry" => $expiry,
       );
 
-      $avs = array(
-        "address" => $billing_order->getStreetLine(1). ' ' .$billing_order->getStreetLine(2),
-        "country" => $billing_order->getCountryId(),
-        "state_province" => $billing_order->getRegion(),
-        "email" => 'q@t.com',
-        "cardholder_name" => $cardholder_name,
-        "postal_code" => $billing_order->getPostcode(),
-        "phone" => '12112',
-        "city" => $billing_order->getCity(),
-      );
+      $token_payload = $this->_payload;
+      $send_avs = (in_array('avs', $token_payload['security'])) ? true : false;
 
       $billing = array(
         "name" => $billing_order->getName(),
@@ -219,13 +214,13 @@ class Payment extends \Magento\Payment\Model\Method\Cc
       );
 
       $shipping = array(
-        "name" => $billing_order->getName(),
+        "name" => $shipping_order->getName(),
         "fiscal_code" => '',
-        "address" => $billing_order->getStreetLine(1). ' ' .$billing_order->getStreetLine(2),
-        "country" => $billing_order->getCountryId(),
-        "state_province" => $billing_order->getRegion(),
-        "postal_code" => $billing_order->getPostcode(),
-        "city" => $billing_order->getCity(),
+        "address" => $shipping_order->getStreetLine(1). ' ' .$shipping_order->getStreetLine(2),
+        "country" => $shipping_order->getCountryId(),
+        "state_province" => $shipping_order->getRegion(),
+        "postal_code" => $shipping_order->getPostcode(),
+        "city" => $shipping_order->getCity(),
       );
 
       $breakdown = array();
@@ -236,46 +231,61 @@ class Payment extends \Magento\Payment\Model\Method\Cc
 
         if ($item->getRowTotal() <= 0) continue;
 
-        for ($i=0; $i < $item->getQtyOrdered(); $i++) {
-          $subtotal = floatval(number_format($item->getRowTotal(), 2));
-          $total = floatval(number_format($item->getRowTotalInclTax(), 2));
+        $subtotal = floatval(number_format($item->getRowTotal(), 2));
+        $total = floatval(number_format($item->getRowTotalInclTax(), 2));
 
-          $breakdown[] = array(
-            "description" => $item->getName(),
-            "subtotal" => $subtotal,
-            "taxes" => $total - $subtotal,
-            "total" => $total
-          );
-        }
+        $breakdown[] = array(
+          "description" => $item->getName(),
+          "subtotal" => $subtotal,
+          "taxes" => $total - $subtotal,
+          "total" => $total,
+          "quantity" => $item->getQtyOrdered()
+        );
 
       }
 
       if ($order->getShippingInvoiced() > 0) {
         $breakdown[] = array(
           "description" => 'Shipping cost',
-          "subtotal" => floatval($order->getShippingInvoiced() - $order->getShippingTaxInvoiced()),
+          "subtotal" => floatval($order->getShippingInvoiced()),
           "taxes" => floatval($order->getShippingTaxInvoiced()),
-          "total" => floatval($order->getShippingInvoiced())
+          "total" => floatval($order->getShippingInvoiced() + $order->getShippingTaxInvoiced()),
+          "quantity" => 1
         );
       }
 
   		$nex_code_transaction = $this->_api->get_payzq_transaction_code();
   		$ip = $this->_api->get_ip_server();
 
-      return array(
+      $response = array(
         "type" => "authorize_and_capture",
         "transaction_id" => $nex_code_transaction,
         "target_transaction_id" => '',
         "amount" => floatval(number_format($amount, 2, '.', '')),
         "currency" => $order->getBaseCurrencyCode(),
         "credit_card" => $credit_card,
-        "avs" => $avs,
         "billing" => $billing,
         "shipping" => $shipping,
         "breakdown" => $breakdown,
         "3ds" => false,
         "ip" => $ip,
       );
+
+      if ($send_avs) {
+        $avs = array(
+          "address" => $billing_order->getStreetLine(1). ' ' .$billing_order->getStreetLine(2),
+          "country" => $billing_order->getCountryId(),
+          "state_province" => $billing_order->getRegion(),
+          "email" => ($order->getCustomerEmail()) ? $order->getCustomerEmail() : '',
+          "cardholder_name" => $cardholder_name,
+          "postal_code" => $billing_order->getPostcode(),
+          "phone" => $shipping_order->getTelephone(),
+          "city" => $billing_order->getCity(),
+        );
+        $response['avs'] = $avs;
+      }
+
+      return $response;
   	}
 
     /**
@@ -353,7 +363,7 @@ class Payment extends \Magento\Payment\Model\Method\Cc
         $response = $this->request($request_refund);
       } catch (\Exception $e) {
         $this->_logger->error('Payment capturing error.'. $e->getMessage());
-        throw new \Magento\Framework\Validator\Exception(__('Payment capturing error.'));
+        throw new \Magento\Framework\Validator\Exception(__('Refund capturing error.'));
       }
 
       if ((!is_array($response)) || (is_array($response) && $response['code'] != '00')) {

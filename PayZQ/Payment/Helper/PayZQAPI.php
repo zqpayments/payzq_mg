@@ -1,8 +1,13 @@
 <?php
 /**
- * WC_PayZQ_API class.
- * Communicates with PayZQ API.
+ * PayZQ payment method model
+ *
+ * @category    PayZQ
+ * @package     Payment
+ * @author      PayZQ
+ * @copyright   PayZQ (http://payzq.net)
  */
+ 
 namespace PayZQ\Payment\Helper;
 
 use \Magento\Framework\App\Helper\AbstractHelper;
