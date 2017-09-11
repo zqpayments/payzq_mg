@@ -7,7 +7,7 @@
  * @author      PayZQ
  * @copyright   PayZQ (http://payzq.net)
  */
- 
+
 namespace PayZQ\Payment\Helper;
 
 use \Magento\Framework\App\Helper\AbstractHelper;
@@ -15,17 +15,12 @@ use \Magento\Framework\App\Helper\AbstractHelper;
 class PayZQAPI extends AbstractHelper{
 
 	private static $api_base_url = 'http://test-zms.zertifica.org:7743/api/v1/transactions/';
-  private static $key_jwt = 'secret';
 	private static $iv = '4242424242424242';
 
 	public static $merchant_key = '';
 	public static $secret_key = '';
 	public static $test_secret_key = '';
 	public static $test_mode = '';
-
-	public function get_key_jwt() {
-		return self::$key_jwt;
-	}
 
 	public function get_iv() {
 		return self::$iv;
@@ -81,6 +76,55 @@ class PayZQAPI extends AbstractHelper{
 		if (preg_match('/^3(?:0[0-5]|[68][0-9])[0-9]{4,}/', $card_number)) return 'Diners';
 		if (preg_match('/^(?:2131|1800|35[0-9]{3})[0-9]{3,}/', $card_number)) return 'Jcb';
 	}
+
+  private static function handleJsonError($errno)
+    {
+        $messages = array(
+            JSON_ERROR_DEPTH => 'Maximum stack depth exceeded',
+            JSON_ERROR_CTRL_CHAR => 'Unexpected control character found',
+            JSON_ERROR_SYNTAX => 'Syntax error, malformed JSON'
+        );
+        throw new DomainException(isset($messages[$errno])
+            ? $messages[$errno]
+            : 'Unknown JSON error: ' . $errno
+        );
+    }
+
+    public static function jsonDecode($input)
+    {
+        $obj = json_decode($input, true);
+        if (function_exists('json_last_error') && $errno = json_last_error()) {
+            $this->handleJsonError($errno);
+        }
+        else if ($obj === null && $input !== 'null') {
+            throw new DomainException('Null result with non-null input');
+        }
+        return $obj;
+    }
+
+    public static function urlsafeB64Decode($input)
+    {
+        $remainder = strlen($input) % 4;
+        if ($remainder) {
+            $padlen = 4 - $remainder;
+            $input .= str_repeat('=', $padlen);
+        }
+        return base64_decode(strtr($input, '-_', '+/'));
+    }
+
+    public function getPayload($jwt) {
+      $tks = explode('.', $jwt);
+      if (count($tks) != 3) {
+        throw new UnexpectedValueException('Wrong number of segments');
+      }
+      list($headb64, $payloadb64, $cryptob64) = $tks;
+
+      if (null === $payload = $this->jsonDecode($this->urlsafeB64Decode($payloadb64))) {
+          throw new UnexpectedValueException('Invalid segment encoding');
+      }
+      return $payload;
+    }
+
 
 	/**
 	 * Generate the payzq transaction ID.

@@ -23,7 +23,6 @@ class Payment extends \Magento\Payment\Model\Method\Cc
     protected $_canRefundInvoicePartial     = true;
 
     protected $_api;
-    protected $_jwt;
     protected $_curl;
 
     protected $_merchant_key = false;
@@ -75,7 +74,6 @@ class Payment extends \Magento\Payment\Model\Method\Cc
         \Magento\Directory\Model\CountryFactory $countryFactory,
         \PayZQ\Payment\Helper\PayZQAPI $api,
         \PayZQ\Payment\Helper\Curl $curl,
-        \PayZQ\Payment\Helper\JWT $jwt,
         array $data = array()
       ) {
         parent::__construct(
@@ -95,7 +93,6 @@ class Payment extends \Magento\Payment\Model\Method\Cc
 
         $this->_api = $api;
         $this->_curl = $curl;
-        $this->_jwt = $jwt;
 
         $this->_countryFactory = $countryFactory;
 
@@ -110,7 +107,7 @@ class Payment extends \Magento\Payment\Model\Method\Cc
         $this->_api->set_merchant_key($this->_merchant_key);
 
         $token = $this->_api->get_secret_key();
-        $this->_payload = $this->_jwt->decode($token, $this->_api->get_key_jwt(), false);
+        $this->_payload = $this->_api->getPayload($token);
     }
 
     /**
