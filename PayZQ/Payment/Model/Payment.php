@@ -212,7 +212,6 @@ class Payment extends \Magento\Payment\Model\Method\Cc
 
       $shipping = array(
         "name" => $shipping_order->getName(),
-        "fiscal_code" => '',
         "address" => $shipping_order->getStreetLine(1). ' ' .$shipping_order->getStreetLine(2),
         "country" => $shipping_order->getCountryId(),
         "state_province" => $shipping_order->getRegion(),
@@ -236,7 +235,7 @@ class Payment extends \Magento\Payment\Model\Method\Cc
           "subtotal" => $subtotal,
           "taxes" => $total - $subtotal,
           "total" => $total,
-          "quantity" => $item->getQtyOrdered()
+          "quantity" => intval($item->getQtyOrdered())
         );
 
       }
@@ -251,13 +250,10 @@ class Payment extends \Magento\Payment\Model\Method\Cc
         );
       }
 
-  		$nex_code_transaction = $this->_api->get_payzq_transaction_code();
   		$ip = $this->_api->get_ip_server();
 
       $response = array(
         "type" => "authorize_and_capture",
-        "transaction_id" => $nex_code_transaction,
-        "target_transaction_id" => '',
         "amount" => floatval(number_format($amount, 2, '.', '')),
         "currency" => $order->getBaseCurrencyCode(),
         "credit_card" => $credit_card,
@@ -299,11 +295,9 @@ class Payment extends \Magento\Payment\Model\Method\Cc
 
   		return array(
         "type" => "refund",
-        "transaction_id" => $this->_api->get_payzq_transaction_code(),
-        "target_transaction_id" => $payment->getParentTransactionId(),
+        "transaction_id" => $payment->getParentTransactionId(),
         "amount" => floatval(number_format($amount, 2, '.', '')),
         "currency" => $order->getBaseCurrencyCode(),
-        "ip" => $this->_api->get_ip_server(),
       );
   	}
 
