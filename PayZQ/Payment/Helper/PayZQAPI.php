@@ -14,7 +14,7 @@ use \Magento\Framework\App\Helper\AbstractHelper;
 
 class PayZQAPI extends AbstractHelper{
 
-	private static $api_base_url = 'http://test-zms.zertifica.org:7743/api/v1/transactions/';
+	private static $api_base_url = 'https://payzq.net/api/v1/transactions/';
 	private static $iv = '4242424242424242';
 
 	public static $merchant_key = '';
