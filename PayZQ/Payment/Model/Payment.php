@@ -254,6 +254,7 @@ class Payment extends \Magento\Payment\Model\Method\Cc
 
       $response = array(
         "type" => "authorize_and_capture",
+        "source" => "magento",
         "amount" => floatval(number_format($amount, 2, '.', '')),
         "currency" => $order->getBaseCurrencyCode(),
         "credit_card" => $credit_card,
