@@ -296,6 +296,7 @@ class Payment extends \Magento\Payment\Model\Method\Cc
 
   		return array(
         "type" => "refund",
+        "source" => "magento",
         "transaction_id" => $payment->getParentTransactionId(),
         "amount" => floatval(number_format($amount, 2, '.', '')),
         "currency" => $order->getBaseCurrencyCode(),
